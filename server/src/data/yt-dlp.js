@@ -4,6 +4,7 @@ const binaryPath = await helpers.downloadYtDlp();
 
 const ytdlp = new YtDlp({
   binaryPath,
+  args: ["--js-runtimes", "node"],
 });
 
 const URL_CACHE_TTL_MS =

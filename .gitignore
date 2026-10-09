@@ -86,3 +86,6 @@ server/src/analysis/tmp_audio/
 server/src/analysis/analyzed/
 # Local data service environment configuration
 server/src/data/.env.example
+
+# Local YouTube cookies
+server/cookies.txt
