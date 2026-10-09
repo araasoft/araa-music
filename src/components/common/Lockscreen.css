@@ -1,0 +1,390 @@
+/* Lock Screen Container */
+.lock-screen-container {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  width: 100%;
+  height: 100vh;
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+  overflow: hidden;
+}
+
+/* Blur overlay for background */
+.lock-screen-blur {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(8px);
+}
+
+/* Main content wrapper */
+.lock-screen-content {
+  position: relative;
+  z-index: 10001;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: space-between;
+  height: 100vh;
+  width: 100%;
+  padding: 40px 20px;
+  text-align: center;
+  color: #fff;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+}
+
+/* Header section */
+.lock-screen-header {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  gap: 12px;
+}
+
+.lock-icon {
+  font-size: 64px;
+  margin-bottom: 8px;
+  animation: bounce 2s infinite;
+}
+
+@keyframes bounce {
+  0%, 100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-10px);
+  }
+}
+
+.lock-screen-header h1 {
+  margin: 0;
+  font-size: 32px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  color: #fff;
+}
+
+.lock-status {
+  margin: 8px 0 0 0;
+  font-size: 14px;
+  color: #b0b0b0;
+  text-transform: uppercase;
+  letter-spacing: 2px;
+  font-weight: 500;
+}
+
+/* Main content area */
+.lock-screen-main {
+  flex: 2;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  gap: 24px;
+  width: 100%;
+  max-width: 320px;
+}
+
+/* Unlock prompt */
+.unlock-prompt {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.unlock-prompt p {
+  margin: 0;
+  font-size: 16px;
+  color: #e0e0e0;
+  font-weight: 500;
+}
+
+/* Unlock button */
+.unlock-button {
+  width: 100%;
+  padding: 16px 24px;
+  font-size: 16px;
+  font-weight: 600;
+  color: #fff;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  border: none;
+  border-radius: 12px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  box-shadow: 0 8px 24px rgba(102, 126, 234, 0.4);
+  min-height: 56px;
+}
+
+.unlock-button:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 12px 32px rgba(102, 126, 234, 0.6);
+}
+
+.unlock-button:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+.unlock-button:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
+.fingerprint-icon {
+  font-size: 20px;
+}
+
+/* Loading spinner */
+.spinner {
+  display: inline-block;
+  width: 16px;
+  height: 16px;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  border-radius: 50%;
+  border-top-color: #fff;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* Error message */
+.error-message {
+  width: 100%;
+  padding: 12px 16px;
+  background: rgba(244, 67, 54, 0.1);
+  border: 1px solid rgba(244, 67, 54, 0.3);
+  border-radius: 8px;
+  color: #ff6b6b;
+  font-size: 14px;
+  font-weight: 500;
+  margin-top: 8px;
+  animation: slideIn 0.3s ease;
+}
+
+@keyframes slideIn {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* No biometric message */
+.no-biometric {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+}
+
+.no-biometric p {
+  margin: 0;
+  font-size: 16px;
+  color: #b0b0b0;
+}
+
+.setup-button {
+  padding: 12px 32px;
+  font-size: 14px;
+  font-weight: 600;
+  color: #667eea;
+  background: transparent;
+  border: 2px solid #667eea;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.setup-button:hover {
+  background: rgba(102, 126, 234, 0.1);
+  transform: translateY(-2px);
+}
+
+/* Footer section with timer */
+.lock-screen-footer {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+}
+
+/* Timer display */
+.timer-display {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+
+.timer-label {
+  font-size: 12px;
+  color: #888;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  font-weight: 500;
+}
+
+.timer-value {
+  font-size: 28px;
+  font-weight: 700;
+  font-family: "SF Mono", Monaco, "Cascadia Code", "Roboto Mono", Consolas, monospace;
+  color: #4db8ff;
+  letter-spacing: 2px;
+  transition: color 0.2s ease;
+}
+
+.timer-value.critical {
+  color: #ff6b6b;
+  animation: pulse-critical 1s ease-in-out infinite;
+}
+
+@keyframes pulse-critical {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.7;
+  }
+}
+
+.timer-info {
+  margin: 0;
+  font-size: 12px;
+  color: #666;
+  font-weight: 400;
+}
+
+/* Pulse indicator for loading state */
+.lock-screen-notification {
+  position: absolute;
+  bottom: 40px;
+  right: 40px;
+  z-index: 10000;
+}
+
+.pulse-indicator {
+  width: 12px;
+  height: 12px;
+  background: #4db8ff;
+  border-radius: 50%;
+  animation: pulse 1.5s ease-in-out infinite;
+  box-shadow: 0 0 8px rgba(77, 184, 255, 0.5);
+}
+
+@keyframes pulse {
+  0% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  50% {
+    transform: scale(1.2);
+    opacity: 0.7;
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+/* Mobile responsive */
+@media (max-width: 480px) {
+  .lock-screen-content {
+    padding: 20px 16px;
+  }
+
+  .lock-icon {
+    font-size: 48px;
+  }
+
+  .lock-screen-header h1 {
+    font-size: 28px;
+  }
+
+  .unlock-button {
+    padding: 14px 20px;
+    font-size: 15px;
+    min-height: 52px;
+  }
+
+  .timer-value {
+    font-size: 24px;
+  }
+
+  .lock-screen-main {
+    max-width: 280px;
+  }
+}
+
+/* Landscape orientation */
+@media (max-height: 600px) {
+  .lock-screen-header {
+    gap: 6px;
+  }
+
+  .lock-icon {
+    font-size: 48px;
+    margin-bottom: 0;
+  }
+
+  .lock-screen-header h1 {
+    font-size: 24px;
+  }
+
+  .lock-screen-main {
+    gap: 16px;
+  }
+
+  .unlock-button {
+    padding: 12px 20px;
+    font-size: 14px;
+    min-height: 48px;
+  }
+
+  .lock-screen-footer {
+    gap: 6px;
+  }
+
+  .timer-value {
+    font-size: 20px;
+  }
+}
+
+/* Prevent any scrolling when lock screen is active */
+.lock-screen-container * {
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  user-select: none;
+  -webkit-user-drag: none;
+}
+
+/* Ensure lock screen stays on top */
+.lock-screen-container input,
+.lock-screen-container button {
+  -webkit-user-select: text;
+  -moz-user-select: text;
+  user-select: text;
+}
