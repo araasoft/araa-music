@@ -1,27 +1,14 @@
 import { YtDlp, helpers } from "ytdlp-nodejs";
-import path from "node:path";
 import fs from "node:fs";
 
 const binaryPath = await helpers.downloadYtDlp();
 const cookiesPath = process.env.YTDLP_COOKIES_PATH;
 
-if (cookiesPath && !fs.existsSync(cookiesPath)) {
-  throw new Error(`YouTube cookies file not found: ${cookiesPath}`);
+if (!cookiesPath || !fs.existsSync(cookiesPath)) {
+  throw new Error("YTDLP_COOKIES_PATH is missing or the file does not exist");
 }
 
-const args = [
-  "--js-runtimes",
-  "node",
-  "--remote-components",
-  "ejs:github",
-];
-
-const ytdlp = new YtDlp({
-  binaryPath,
-  args,
-  ...(cookiesPath ? { cookies: cookiesPath } : {}),
-});
-
+const ytdlp = new YtDlp({ binaryPath });
 
 const URL_CACHE_TTL_MS =
   Number(process.env.URL_CACHE_TTL_MS) || 4 * 60 * 60 * 1000; // 4h (yt links expire ~6h)
@@ -66,10 +53,21 @@ export default async function getUrl(id) {
   const cached = urlCache.get(id);
   if (cached) return cached;
 
+  console.log("YouTube cookies configured:", Boolean(cookiesPath));
+  console.log(
+    "YouTube cookies file exists:",
+    Boolean(cookiesPath && fs.existsSync(cookiesPath))
+  );
+
   const url = `https://youtu.be/${id}`;
 
   try {
-    const result = await ytdlp.getFormatsAsync(url);
+    const result = await ytdlp.getFormatsAsync(url, {
+      cookies: cookiesPath,
+      jsRuntime: "node",
+      rawArgs: ["--remote-components", "ejs:npm"],
+    });
+
 
     const audioFormats = result.formats.filter(
       (f) => f.acodec !== "none" && f.vcodec === "none" && f.url,
