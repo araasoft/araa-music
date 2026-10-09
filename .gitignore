@@ -89,3 +89,6 @@ server/src/data/.env.example
 
 # Local YouTube cookies
 server/cookies.txt
+
+cookies.txt
+*.cookies.txt

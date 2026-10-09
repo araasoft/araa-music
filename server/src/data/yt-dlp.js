@@ -1,11 +1,27 @@
 import { YtDlp, helpers } from "ytdlp-nodejs";
+import path from "node:path";
+import fs from "node:fs";
 
 const binaryPath = await helpers.downloadYtDlp();
+const cookiesPath = process.env.YTDLP_COOKIES_PATH;
+
+if (cookiesPath && !fs.existsSync(cookiesPath)) {
+  throw new Error(`YouTube cookies file not found: ${cookiesPath}`);
+}
+
+const args = [
+  "--js-runtimes",
+  "node",
+  "--remote-components",
+  "ejs:github",
+];
 
 const ytdlp = new YtDlp({
   binaryPath,
-  args: ["--js-runtimes", "node"],
+  args,
+  ...(cookiesPath ? { cookies: cookiesPath } : {}),
 });
+
 
 const URL_CACHE_TTL_MS =
   Number(process.env.URL_CACHE_TTL_MS) || 4 * 60 * 60 * 1000; // 4h (yt links expire ~6h)
