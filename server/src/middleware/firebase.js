@@ -18,7 +18,7 @@ const admin = getApps().length
   : initializeApp({
       credential: cert(serviceAccount),
       databaseURL:
-        "https://araa-music-web-default-rtdb.asia-southeast1.firebasedatabase.app",
+        "https://music-araasoftwares-default-rtdb.firebaseio.com",
     });
 
 export const auth = getAuth(admin);
