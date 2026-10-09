@@ -111,12 +111,20 @@ export default async function getUrl(id) {
     const payload = { audios, videos, mixed };
     urlCache.set(id, payload);
     return payload;
+
   } catch (error) {
-    console.error(`getUrl failed for ${id}:`, error);
-    // Don't cache failures
+    console.error("YouTube extraction failed", {
+      videoId: id,
+      message: error?.message,
+      stderr: error?.stderr,
+      stdout: error?.stdout,
+      cause: error?.cause?.message,
+    });
+
     return {
       error: true,
       message: "Unable to resolve this video right now.",
     };
   }
+
 }
