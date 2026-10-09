@@ -65,11 +65,11 @@ export default async function getUrl(id) {
     const result = await ytdlp.getFormatsAsync(url, {
       cookies: cookiesPath,
       jsRuntime: "node",
-      rawArgs: ["--remote-components", "ejs:npm"],
       verbose: true,
       debugPrintCommandLine: true,
     });
 
+    console.log("YouTube extraction result:", result);
 
     const audioFormats = result.formats.filter(
       (f) => f.acodec !== "none" && f.vcodec === "none" && f.url,
