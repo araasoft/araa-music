@@ -14,19 +14,22 @@ const execFileP = promisify(execFile);
 /* Config + logging                                                   */
 /* ------------------------------------------------------------------ */
 
-// Debug mode is ON when NODE_ENV=development, or when DEBUG_YTDLP=true.
-// Set DEBUG_YTDLP=false to silence it even in development.
+// Debug is ON when NODE_ENV=development, or when DEBUG_YTDLP=true.
+// DEBUG_YTDLP=false silences it even in development.
 const DEBUG =
   process.env.DEBUG_YTDLP != null
     ? process.env.DEBUG_YTDLP === "true"
     : process.env.NODE_ENV === "development";
 
-// Also dump the entire raw yt-dlp JSON (very large). Only used if DEBUG is on.
+// Also dump the entire raw yt-dlp JSON (very large). Only if DEBUG is on.
 const DEBUG_RAW = DEBUG && process.env.DEBUG_YTDLP_RAW === "true";
 
 const URL_CACHE_TTL_MS =
   Number(process.env.URL_CACHE_TTL_MS) || 4 * 60 * 60 * 1000; // 4h (links expire ~6h)
-const YTDLP_TIMEOUT_MS = Number(process.env.YTDLP_TIMEOUT_MS) || 60_000;
+const YTDLP_TIMEOUT_MS = Number(process.env.YTDLP_TIMEOUT_MS) || 60_000; // cookie attempt
+const FAST_TIMEOUT_MS = Number(process.env.YTDLP_FAST_TIMEOUT_MS) || 25_000; // no-cookie attempt
+const MAX_CONCURRENT = Number(process.env.YTDLP_MAX_CONCURRENT) || 2; // free Render CPU is tiny
+const COOKIE_ONLY_MS = 10 * 60 * 1000; // after a "bot" error, skip the no-cookie attempt for 10 min
 const VIDEO_ID_RE = /^[A-Za-z0-9_-]{11}$/;
 
 const ts = () => new Date().toISOString();
@@ -43,11 +46,13 @@ info("config", {
   nodeEnv: process.env.NODE_ENV || "(unset)",
   platform: process.platform,
   cacheTtlMs: URL_CACHE_TTL_MS,
-  timeoutMs: YTDLP_TIMEOUT_MS,
+  fastTimeoutMs: FAST_TIMEOUT_MS,
+  cookieTimeoutMs: YTDLP_TIMEOUT_MS,
+  maxConcurrent: MAX_CONCURRENT,
 });
 
 /* ------------------------------------------------------------------ */
-/* Setup: binary + cookies                                            */
+/* Setup: binary + cookies + yt-dlp cache dir                         */
 /* ------------------------------------------------------------------ */
 
 debug("setup", "downloading/locating yt-dlp binary...");
@@ -82,6 +87,10 @@ if (secretCookiesPath && fs.existsSync(secretCookiesPath)) {
     `cookies not found (YTDLP_COOKIES_PATH=${secretCookiesPath || "unset"}). Running without cookies.`,
   );
 }
+
+// Lets yt-dlp keep the downloaded player/signature data between requests.
+const cacheDir = path.join(os.tmpdir(), "yt-dlp-cache");
+debug("setup", "yt-dlp cache dir:", cacheDir);
 
 /* ------------------------------------------------------------------ */
 /* TTL cache                                                          */
@@ -131,6 +140,31 @@ setInterval(() => urlCache.sweep(), 10 * 60 * 1000).unref();
 const inflight = new Map();
 
 /* ------------------------------------------------------------------ */
+/* Concurrency limiter (keeps a small CPU from being overloaded)      */
+/* ------------------------------------------------------------------ */
+
+let active = 0;
+const waiters = [];
+
+async function acquire() {
+  if (active < MAX_CONCURRENT) {
+    active++;
+    debug("queue", `slot acquired (${active}/${MAX_CONCURRENT})`);
+    return;
+  }
+  debug("queue", `waiting for a slot (${waiters.length + 1} queued)`);
+  await new Promise((resolveSlot) => waiters.push(resolveSlot));
+  debug("queue", "slot handed over");
+}
+
+function release() {
+  const next = waiters.shift();
+  if (next) next(); // hand the slot straight to the next waiter
+  else active--;
+  debug("queue", `slot released (${active}/${MAX_CONCURRENT} active, ${waiters.length} queued)`);
+}
+
+/* ------------------------------------------------------------------ */
 /* yt-dlp                                                             */
 /* ------------------------------------------------------------------ */
 
@@ -142,11 +176,18 @@ function lastYtdlpError(stderr = "") {
   return lines.length ? lines[lines.length - 1] : null;
 }
 
-async function runYtdlp(url) {
+const BOT_ERROR_RE = /sign in to confirm|not a bot|use --cookies|cookies/i;
+let cookieOnlyUntil = 0; // timestamp until which we skip the no-cookie attempt
+
+async function runYtdlp(url, useCookies, timeoutMs) {
+  const withCookies = Boolean(useCookies && cookiesPath);
+
   const args = [
     "--js-runtime",
     "node",
-    ...(cookiesPath ? ["--cookies", cookiesPath] : []),
+    "--cache-dir",
+    cacheDir,
+    ...(withCookies ? ["--cookies", cookiesPath] : []),
     "--dump-single-json",
     "--no-playlist",
     // In debug mode we want yt-dlp's full verbose output and its warnings.
@@ -155,30 +196,31 @@ async function runYtdlp(url) {
     url,
   ];
 
+  debug("exec", `cookies=${withCookies} timeout=${timeoutMs}ms`);
   debug("exec", "command:", binaryPath, args.join(" "));
-  const started = Date.now();
 
+  await acquire();
+  const started = Date.now();
   try {
     const { stdout, stderr } = await execFileP(binaryPath, args, {
       maxBuffer: 50 * 1024 * 1024,
-      timeout: YTDLP_TIMEOUT_MS,
+      timeout: timeoutMs,
     });
 
-    debug("exec", `finished in ${Date.now() - started}ms, stdout ${stdout.length} bytes`);
+    info("exec", `yt-dlp finished in ${Date.now() - started}ms (cookies=${withCookies})`);
+    debug("exec", `stdout ${stdout.length} bytes`);
 
     if (stderr) {
-      if (DEBUG) {
-        debug("exec", "yt-dlp stderr (verbose):\n" + stderr.trim());
-      } else {
-        warn("exec", "yt-dlp stderr:", stderr.trim());
-      }
+      if (DEBUG) debug("exec", "yt-dlp stderr (verbose):\n" + stderr.trim());
+      else warn("exec", "yt-dlp stderr:", stderr.trim());
     }
 
     const parsed = JSON.parse(stdout);
     debug("exec", "JSON parsed OK");
     return parsed;
   } catch (err) {
-    debug("exec", `failed after ${Date.now() - started}ms`, {
+    warn("exec", `yt-dlp failed after ${Date.now() - started}ms (cookies=${withCookies})`);
+    debug("exec", "failure details:", {
       code: err.code,
       killed: err.killed,
       signal: err.signal,
@@ -190,8 +232,41 @@ async function runYtdlp(url) {
     e.code = err.code;
     e.killed = err.killed; // true when the timeout fired
     throw e;
+  } finally {
+    release();
   }
 }
+
+// Fast path first (no cookies), then fall back to the slower cookie path.
+async function fetchInfo(url) {
+  const cookiesAvailable = Boolean(cookiesPath);
+
+  if (cookiesAvailable && Date.now() < cookieOnlyUntil) {
+    debug("strategy", "recent bot-check seen: going straight to cookies");
+    return runYtdlp(url, true, YTDLP_TIMEOUT_MS);
+  }
+
+  try {
+    debug("strategy", "attempt 1: no cookies (fast path)");
+    return await runYtdlp(url, false, FAST_TIMEOUT_MS);
+  } catch (firstErr) {
+    if (!cookiesAvailable) throw firstErr;
+
+    const text = `${firstErr.message} ${firstErr.stderr || ""}`;
+    if (BOT_ERROR_RE.test(text)) {
+      cookieOnlyUntil = Date.now() + COOKIE_ONLY_MS;
+      warn("strategy", `bot-check detected, skipping no-cookie attempts for ${COOKIE_ONLY_MS / 60000} min`);
+    }
+
+    warn("strategy", `no-cookie attempt failed (${firstErr.message}); retrying with cookies`);
+    debug("strategy", "attempt 2: with cookies");
+    return runYtdlp(url, true, YTDLP_TIMEOUT_MS);
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/* Format parsing                                                     */
+/* ------------------------------------------------------------------ */
 
 function formatPayload(data) {
   const all = data.formats || [];
@@ -251,31 +326,23 @@ function formatPayload(data) {
 
   debug("formats", `audios=${audios.length} videos=${videos.length} mixed=${mixed.length}`);
   if (DEBUG) {
-    debug(
-      "formats",
-      "audio list:",
-      audios.map((a) => `${a.quality}kbps ${a.ext}/${a.codec}`),
-    );
-    debug(
-      "formats",
-      "video list:",
-      videos.map((v) => `${v.quality}${v.fps ? "@" + v.fps : ""} ${v.ext}/${v.codec}`),
-    );
-    debug(
-      "formats",
-      "mixed list:",
-      mixed.map((m) => `${m.quality} ${m.ext}`),
-    );
+    debug("formats", "audio list:", audios.map((a) => `${a.quality}kbps ${a.ext}/${a.codec}`));
+    debug("formats", "video list:", videos.map((v) => `${v.quality}${v.fps ? "@" + v.fps : ""} ${v.ext}/${v.codec}`));
+    debug("formats", "mixed list:", mixed.map((m) => `${m.quality} ${m.ext}`));
   }
 
   return { audios, videos, mixed };
 }
 
+/* ------------------------------------------------------------------ */
+/* Resolve                                                            */
+/* ------------------------------------------------------------------ */
+
 async function resolve(id) {
   const url = `https://youtu.be/${id}`;
   info("resolve", `resolving ${id}`);
 
-  const data = await runYtdlp(url);
+  const data = await fetchInfo(url);
 
   debug("resolve", "video info:", {
     id: data.id,
@@ -332,7 +399,7 @@ export default async function getUrl(id) {
     })
     .catch((err) => {
       error("getUrl", `extraction failed for ${id} after ${Date.now() - started}ms:`, err.message);
-      if (err.killed) error("getUrl", `yt-dlp timed out after ${YTDLP_TIMEOUT_MS}ms`);
+      if (err.killed) error("getUrl", "yt-dlp timed out");
       if (err.stderr) error("getUrl", "yt-dlp stderr:\n" + err.stderr);
       if (DEBUG && err.stack) debug("getUrl", "stack:", err.stack);
 
@@ -349,4 +416,26 @@ export default async function getUrl(id) {
 
   inflight.set(id, promise);
   return promise;
+}
+
+/**
+ * Warm the cache for songs the user is likely to play next.
+ * Fire and forget: `prefetch(["id1", "id2"]);` (no await needed).
+ * Runs one at a time, skips cached ids, never throws.
+ */
+export async function prefetch(ids = [], max = 3) {
+  const list = [...new Set(ids)].filter((id) => VIDEO_ID_RE.test(id)).slice(0, max);
+  debug("prefetch", "requested:", list);
+
+  for (const id of list) {
+    if (urlCache.get(id) || inflight.has(id)) {
+      debug("prefetch", `skip ${id} (already cached or in flight)`);
+      continue;
+    }
+    try {
+      await getUrl(id);
+    } catch (e) {
+      debug("prefetch", `failed ${id}:`, e.message);
+    }
+  }
 }
