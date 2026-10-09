@@ -66,6 +66,8 @@ export default async function getUrl(id) {
       cookies: cookiesPath,
       jsRuntime: "node",
       rawArgs: ["--remote-components", "ejs:npm"],
+      verbose: true,
+      debugPrintCommandLine: true,
     });
 
 
@@ -113,12 +115,13 @@ export default async function getUrl(id) {
     return payload;
 
   } catch (error) {
-    console.error("YouTube extraction failed", {
-      videoId: id,
+    console.error("YouTube extraction failed:", error);
+    console.error("Error details:", {
       message: error?.message,
+      stack: error?.stack,
       stderr: error?.stderr,
       stdout: error?.stdout,
-      cause: error?.cause?.message,
+      cause: error?.cause,
     });
 
     return {
