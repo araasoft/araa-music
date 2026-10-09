@@ -1,8 +1,9 @@
-import { YtDlp } from "ytdlp-nodejs";
+import { YtDlp, helpers } from "ytdlp-nodejs";
+
+const binaryPath = await helpers.downloadYtDlp();
 
 const ytdlp = new YtDlp({
-  binaryPath: "/usr/bin/yt-dlp",
-  ffmpegPath: "/usr/bin/ffmpeg"
+  binaryPath,
 });
 
 const URL_CACHE_TTL_MS =
